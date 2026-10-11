@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { getProducts } from "@/lib/commerce/catalogue";
+import { getDatabaseStore } from "@/lib/orders/postgres-store";
 
 export type OrderStatus = "placed" | "reserved" | "fulfilled" | "cancelled";
 
@@ -115,11 +116,13 @@ function reservedQuantity(orders: StoredOrder[], handle: string) {
 }
 
 export async function listOrders(): Promise<StoredOrder[]> {
+  if (process.env.ORDER_STORAGE === "postgres") return getDatabaseStore().listOrders();
   const state = await readState();
   return state.orders.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 export async function getInventory(): Promise<InventoryItem[]> {
+  if (process.env.ORDER_STORAGE === "postgres") return getDatabaseStore().getInventory();
   const [state, products] = await Promise.all([readState(), getProducts()]);
   return products.map((product) => {
     const onHand = state.inventory[product.handle] ?? 0;
@@ -129,6 +132,7 @@ export async function getInventory(): Promise<InventoryItem[]> {
 }
 
 export async function reserveOrder(order: NewOrder): Promise<{ order: StoredOrder } | { unavailable: { name: string; available: number; requested: number }[] }> {
+  if (process.env.ORDER_STORAGE === "postgres") return getDatabaseStore().reserveOrder(order);
   return runExclusive(async () => {
     const state = await readState();
     const unavailable = order.items.flatMap((item) => {
@@ -151,6 +155,7 @@ export async function reserveOrder(order: NewOrder): Promise<{ order: StoredOrde
 }
 
 export async function updateOrderStatus(orderNumber: string, action: "cancel" | "fulfill") {
+  if (process.env.ORDER_STORAGE === "postgres") return getDatabaseStore().updateOrderStatus(orderNumber, action);
   return runExclusive(async () => {
     const state = await readState();
     const order = state.orders.find((entry) => entry.orderNumber === orderNumber);

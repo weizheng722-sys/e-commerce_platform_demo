@@ -9,12 +9,15 @@
     "lint": "eslint src tests",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "import:orders": "node --experimental-strip-types scripts/import-orders.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "^15.5.0",
+    "pg": "^8.23.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "stripe": "^23.0.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
@@ -22,6 +25,7 @@
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.18.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "eslint": "^9.35.0",

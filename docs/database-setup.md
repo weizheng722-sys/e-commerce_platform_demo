@@ -1,6 +1,6 @@
-# Managed database setup (preparation)
+# Managed database setup
 
-The current app saves orders and inventory to `.local/orders.json`. This is only suitable for local development. It does not become a hosted database by setting `DATABASE_URL`; the application still needs a database adapter and migration before it can read or write PostgreSQL.
+The app defaults to `.local/orders.json`. To use the PostgreSQL adapter, set `ORDER_STORAGE=postgres` and `DATABASE_URL` in the server environment. The adapter uses transactions and locks inventory rows during reservations. Keep `ORDER_STORAGE` unset or set it to `file` to continue using the local store.
 
 ## Recommended provider
 
@@ -17,6 +17,7 @@ You do not need to administer a PostgreSQL server. The one-time setup is to crea
 1. Keep `.local/orders.json` as-is and make a separate backup before any migration.
 2. Create the managed database and run `database/schema.sql` in its SQL editor.
 3. Add the pooled connection string to `.env.local` as `DATABASE_URL=...` (that file is ignored by Git).
-4. Implement and verify the database adapter and a one-time importer before changing the app's storage mode. Existing orders and stock must be imported without duplicating orders, and the JSON file should remain available as a backup until that is verified.
+4. Back up `.local/orders.json`. Run `pnpm import:orders` for a dry run. It checks source validity and refuses order-number collisions. Run `pnpm import:orders -- --apply` only after reviewing the dry-run result. The importer uses one database transaction and preserves inventory from a versioned JSON snapshot. Legacy array files contain no inventory snapshot, so seeded database stock is retained.
+5. Verify imported orders and inventory in the Neon SQL Editor. Then set `ORDER_STORAGE=postgres` locally and verify checkout, cancellation, and fulfillment against a disposable Neon branch before enabling it on production.
 
-Do not use the database for real customer orders until the adapter, access controls, backups, and deployment environment are configured and tested.
+Do not use the database for real customer orders until access controls, backups, and deployment environment are configured and tested. The importer intentionally refuses any collision rather than attempting a merge. `--apply` overwrites matching inventory rows from the source snapshot; review those quantities first.

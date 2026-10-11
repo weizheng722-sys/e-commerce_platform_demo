@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getProducts } from "@/lib/commerce/catalogue";
 import { reserveOrder } from "@/lib/orders/store";
+import Stripe from "stripe";
 
 const checkoutSchema = z.object({
   customer: z.object({
@@ -88,14 +89,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `We could not reserve your box. ${message}` }, { status: 409 });
   }
 
-  return NextResponse.json({
-    receipt: {
+  const receipt = {
       orderNumber: reservedOrder.order.orderNumber,
       createdAt: reservedOrder.order.createdAt,
       customerName: reservedOrder.order.customer.name,
       customerEmail: reservedOrder.order.customer.email,
       items: reservedOrder.order.items,
       subtotal: reservedOrder.order.subtotal,
-    },
-  }, { status: 201 });
+    };
+
+  if (process.env.PAYMENT_PROVIDER === "stripe") {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey?.startsWith("sk_test_")) {
+      await import("@/lib/orders/store").then(({ updateOrderStatus }) => updateOrderStatus(receipt.orderNumber, "cancel"));
+      return NextResponse.json({ error: "Stripe test mode is not configured with a test secret key." }, { status: 503 });
+    }
+    try {
+      const stripe = new Stripe(secretKey);
+      const appUrl = process.env.APP_URL ?? new URL(request.url).origin;
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: receipt.customerEmail,
+        client_reference_id: receipt.orderNumber,
+        metadata: { orderNumber: receipt.orderNumber },
+        line_items: reservedOrder.order.items.map((item) => ({
+          quantity: item.quantity,
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round(item.unitPrice * 100),
+            product_data: { name: item.name },
+          },
+        })),
+        success_url: `${appUrl}/checkout/confirmation?payment=success`,
+        cancel_url: `${appUrl}/checkout?payment=cancelled`,
+      });
+      if (!session.url) throw new Error("Stripe did not return a Checkout URL");
+      return NextResponse.json({ receipt, checkoutUrl: session.url }, { status: 201 });
+    } catch {
+      await import("@/lib/orders/store").then(({ updateOrderStatus }) => updateOrderStatus(receipt.orderNumber, "cancel"));
+      return NextResponse.json({ error: "We could not start secure test checkout. Please try again." }, { status: 502 });
+    }
+  }
+
+  return NextResponse.json({ receipt }, { status: 201 });
 }

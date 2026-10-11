@@ -43,7 +43,7 @@ export function CheckoutForm() {
           items: items.map(({ handle, quantity }) => ({ handle, quantity })),
         }),
       });
-      const result = await response.json() as { receipt?: CheckoutReceipt; error?: string };
+      const result = await response.json() as { receipt?: CheckoutReceipt; checkoutUrl?: string; error?: string };
       if (!response.ok || !result.receipt) {
         setError(result.error ?? "Checkout could not be completed. Please try again.");
         return;
@@ -56,6 +56,10 @@ export function CheckoutForm() {
         // The in-memory receipt still supports the confirmation page for this navigation.
       }
       clearCart();
+      if (result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       router.push("/checkout/confirmation");
     } catch {
       setError("We could not reach checkout. Please check your connection and try again.");
@@ -84,10 +88,10 @@ export function CheckoutForm() {
       <Link className="back-link" href="/cart">← Back to your box</Link>
       <div className="checkout-heading">
         <div>
-          <p className="eyebrow"><span className="eyebrow-dot" /> Mock checkout</p>
+          <p className="eyebrow"><span className="eyebrow-dot" /> Demo checkout</p>
           <h1 id="checkout-title">Where should<br /><em>we deliver?</em></h1>
         </div>
-        <p className="checkout-notice">Demo only. No payment will be collected and no delivery will be scheduled.</p>
+        <p className="checkout-notice">Demo only. When Stripe test mode is enabled, use test card details; no real payment will be collected.</p>
       </div>
 
       <div className="checkout-layout">
